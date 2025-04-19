@@ -2,7 +2,7 @@ import streamlit as st
 
 st.set_page_config(layout="wide")
 st.header("钢物性参数")
-col1, col2 = st.columns(spec=[3, 7], border=True)
+col1, col2 = st.columns([3, 7])
 
 with col1:
     # 定义预设元素
@@ -43,14 +43,26 @@ with col1:
         "S",  # 硫 (Sulfur)
     ]
 
-    # 初始化百分比变量
-    for elem in all_components:
-        globals()[f"percent_{elem}"] = 0.0
+    # 显式初始化所有元素百分比变量
+    percent_C = percent_Mn = percent_Si = percent_Cr = percent_Ni = 0.0
+    percent_Mo = percent_V = percent_W = percent_Ti = percent_Al = 0.0
+    percent_Cu = percent_B = percent_N = percent_P = percent_S = 0.0
 
-    # 设置预设元素的百分比
+    # 设置预设元素的百分比并添加到selected_components
     if spec in preset_elements:
-        for elem, value in preset_elements[spec].items():
-            globals()[f"percent_{elem}"] = value
+        # 按照all_components顺序添加元素
+        for elem in all_components:
+            if elem in preset_elements[spec]:
+                value = preset_elements[spec][elem]
+                globals()[f"percent_{elem}"] = value
+                # 如果元素不在已选列表中，则添加
+                if not any(
+                    c["name"] == elem for c in st.session_state.get("components", [])
+                ):
+                    new_component = {"name": elem, "percentage": value}
+                    if "components" not in st.session_state:
+                        st.session_state.components = []
+                    st.session_state.components.append(new_component)
 
     # 允许所有选项添加自定义成分
     selected_components = st.session_state.get("components", [])
@@ -61,14 +73,18 @@ with col1:
 
     if st.button("添加成分"):
         if available_components:
-            new_component = {"name": available_components[0], "percentage": 0.0}
-            selected_components.append(new_component)
-            st.session_state.components = selected_components
-            st.rerun()
+            # 按照all_components顺序找到第一个可用的元素
+            for elem in all_components:
+                if elem in available_components:
+                    new_component = {"name": elem, "percentage": 0.0}
+                    selected_components.append(new_component)
+                    st.session_state.components = selected_components
+                    st.rerun()
+                    break
 
     for i, component in enumerate(selected_components):
         col1, col2, col3 = st.columns(
-            [3, 3, 2], gap="small", vertical_alignment="bottom"
+            [1, 1, 1], gap="small", vertical_alignment="bottom"
         )
         with col1:
             # 为每个组件生成唯一ID
@@ -101,9 +117,37 @@ with col1:
                 step=0.01,
                 key=f"percentage_{id(component)}",
             )
-            # 动态更新变量
-            var_name = f"percent_{new_name.replace(' ', '_')}"
-            globals()[var_name] = component["percentage"]
+            # 显式更新变量
+            if new_name == "C":
+                percent_C = component["percentage"]
+            elif new_name == "Mn":
+                percent_Mn = component["percentage"]
+            elif new_name == "Si":
+                percent_Si = component["percentage"]
+            elif new_name == "Cr":
+                percent_Cr = component["percentage"]
+            elif new_name == "Ni":
+                percent_Ni = component["percentage"]
+            elif new_name == "Mo":
+                percent_Mo = component["percentage"]
+            elif new_name == "V":
+                percent_V = component["percentage"]
+            elif new_name == "W":
+                percent_W = component["percentage"]
+            elif new_name == "Ti":
+                percent_Ti = component["percentage"]
+            elif new_name == "Al":
+                percent_Al = component["percentage"]
+            elif new_name == "Cu":
+                percent_Cu = component["percentage"]
+            elif new_name == "B":
+                percent_B = component["percentage"]
+            elif new_name == "N":
+                percent_N = component["percentage"]
+            elif new_name == "P":
+                percent_P = component["percentage"]
+            elif new_name == "S":
+                percent_S = component["percentage"]
         with col3:
             st.write("")  # 确保垂直对齐
             if st.button(
@@ -115,6 +159,8 @@ with col1:
                 st.session_state.components = selected_components
                 st.rerun()
 
+    # 根据钢种设置默认index
+    default_index = 5 if spec == "奥氏体不锈钢(不锈钢304/316)" else 0
     kind = st.selectbox(
         "钢的类型",
         [
@@ -127,7 +173,7 @@ with col1:
             "包晶钢",
             "包晶合金钢",
         ],
-        index=0,
+        index=default_index,
     )
 
 # 更新可用组件列表
@@ -135,23 +181,49 @@ used_names = [comp["name"] for comp in selected_components]
 available_components = [c for c in all_components if c not in used_names]
 
 # 计算液相线温度
-t_l = 1538 - (
-    percent_C * 55
-    + percent_Si * 13
-    + percent_Mn * 4.8
-    + percent_P * 30
-    + percent_S * 30
-    + percent_Cr * 1  # 假设Cr的系数为0
-    + percent_Ni * 1  # 假设Ni的系数为0
-    + percent_Cu * 1  # 假设Cu的系数为0
-    + percent_Mo * 1  # 假设Mo的系数为0
-)
-
-# 动态添加自定义成分的系数
-for comp in selected_components:
-    var_name = f"percent_{comp['name'].replace(' ', '_')}"
-    if var_name in globals():
-        # 假设自定义成分的系数为0，可以根据需要调整
-        t_l -= globals()[var_name] * 0
+if kind in ["低碳钢", "中碳钢", "高碳钢"]:
+    # 碳钢计算公式
+    t_l = 1538 - (
+        percent_C * 55
+        + percent_C * percent_C * 80  # C²项
+        + percent_Si * 13
+        + percent_Mn * 4.8
+        + percent_Cr * 1.5
+        + percent_Ni * 4.3
+        + percent_P * 30
+        + percent_S * 20
+    )
+elif kind == "高合金钢" and spec == "奥氏体不锈钢(不锈钢304/316)":
+    # 其他钢种计算公式
+    t_l = 1536.6 - (
+        percent_C * 90
+        + percent_Si * 8
+        + percent_Mn * 5
+        + percent_P * 30
+        + percent_S * 25
+        + percent_Al * 3
+        + percent_Cr * 1.5  # 假设Cr的系数为0
+        + percent_Mo * 2  # 假设Mo的系数为0
+        + percent_Ti * 18  # 假设Mo的系数为0
+        + percent_N * 80  # 假设Ni的系数为0
+        + percent_Cu * 5  # 假设Cu的系数为0
+    )
 
 st.write(f"液相线温度计算结果: {t_l:.1f}°C")
+
+# 计算固相线温度
+t_s = 1510 - (
+    percent_C * 50
+    + percent_Si * 7
+    + percent_Mn * 4.5
+    + percent_P * 25
+    + percent_S * 20
+    + percent_Al * 2.5
+    + percent_Cr * 1.2
+    + percent_Mo * 1.8
+    + percent_Ti * 15
+    + percent_N * 70
+    + percent_Cu * 4
+)
+
+st.write(f"固相线温度计算结果: {t_s:.1f}°C")
