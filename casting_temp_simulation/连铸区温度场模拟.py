@@ -10,12 +10,31 @@ st.title("连铸区温度场模拟计算")
 tab1, tab2, tab3 = st.tabs(["钢物性参数", "工艺及设备参数", "计算参数"])
 
 with tab1:
-    col1, col2 = st.columns([0.2, 0.8])
+    col1, col2 = st.columns([0.2, 0.8], border=True)
 
     with col1:
         st.subheader("钢种参数")
-        steel_type = st.selectbox("浇筑钢种", ["低碳钢", "中碳钢", "高碳钢"])
-        pouring_temp = st.number_input("浇筑温度(℃)", value=1550)
+        steel_type = st.selectbox(
+            "浇筑钢种",
+            [
+                "低碳钢",
+                "中碳钢",
+                "高碳钢",
+                "低合金钢",
+                "中合金钢",
+                "高合金钢",
+                "包晶钢",
+                "包晶合金钢",
+            ],
+        )
+        frequently_used = st.selectbox(
+            "根据一些常用的钢种确定钢的成分",
+            [
+                "Q235",
+                "20#",
+                "不锈钢304",
+            ],
+        )
         liquidus_temp = st.number_input("液相线温度(℃)", value=1520)
         solidus_temp = st.number_input("固相线温度(℃)", value=1450)
         conductivity = st.number_input("热导率(W/m·K)", value=30.0)
@@ -28,7 +47,7 @@ with tab1:
             {
                 "参数": [
                     "钢种",
-                    "浇筑温度",
+                    # "浇筑温度",
                     "液相线温度",
                     "固相线温度",
                     "热导率",
@@ -37,7 +56,7 @@ with tab1:
                 ],
                 "值": [
                     steel_type,
-                    f"{pouring_temp}℃",
+                    # f"{pouring_temp}℃",
                     f"{liquidus_temp}℃",
                     f"{solidus_temp}℃",
                     f"{conductivity} W/m·K",
@@ -49,10 +68,11 @@ with tab1:
         st.table(steel_properties)
 
 with tab2:
-    col1, col2, col3 = st.columns([0.15, 0.15, 0.7])
+    col1, col2, col3 = st.columns([0.15, 0.15, 0.7], border=True)
 
     with col1:
         st.subheader("结晶器参数")
+        pouring_temp = st.number_input("浇筑温度(℃)", value=1550)
         casting_speed = st.number_input("拉坯速度(m/min)", value=1.2)
         heat_flux_factor = st.number_input("热流密度修正系数", value=1.0)
         width = st.number_input("断面宽度(mm)", value=200)
@@ -106,7 +126,7 @@ with tab2:
         st.plotly_chart(fig, use_container_width=True)
 
 with tab3:
-    col1, col2 = st.columns([0.15, 0.85])
+    col1, col2 = st.columns([0.15, 0.85], border=True)
 
     with col1:
         st.subheader("计算设置")
