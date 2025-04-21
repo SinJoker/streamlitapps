@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
+
 st.title("连铸区温度场模拟计算")
 
 tab1, tab2, tab3 = st.tabs(["钢物性参数", "工艺及设备参数", "计算参数"])
@@ -338,16 +339,14 @@ with tab1:
 
         col2_subcol1, col2_subcol2 = col2.columns([1, 1], gap="medium")
         with col2_subcol1:
-            st.write(f"液相线温度计算结果: {t_l:.1f}°C")
-            st.write(f"固相线温度计算结果: {t_s:.1f}°C")
-
-        with col2_subcol2:
             # 显示当前钢种的物性参数表格
             st.write(f"{kind}物性参数:")
             props = steel_properties[kind]
             df = pd.DataFrame(
                 {
                     "参数": [
+                        "液相线温度",
+                        "固相线温度",
                         "导热系数(s)",
                         "导热系数(m)",
                         "导热系数(l)",
@@ -360,6 +359,8 @@ with tab1:
                         "潜热",
                     ],
                     "值": [
+                        t_l,
+                        t_s,
                         props["lamda_s"],
                         props["lamda_m"],
                         props["lamda_l"],
@@ -372,6 +373,8 @@ with tab1:
                         props["l_f"],
                     ],
                     "单位": [
+                        "℃",
+                        "℃",
                         "W/(m·K)",
                         "W/(m·K)",
                         "W/(m·K)",
@@ -386,9 +389,12 @@ with tab1:
                 }
             )
             st.dataframe(df, hide_index=True, use_container_width=True)
+        with col2_subcol2:
+            st.write(f"{kind}几个随着温度变化的物性参数:")
+
 
 with tab2:
-    tab2_col1, tab2_col2, tab2_col3 = st.columns([3, 3, 14], border=True)
+    tab2_col1, tab2_col2, tab2_col3 = st.columns([3, 6, 14], border=True)
 
     with tab2_col1:
         st.subheader("结晶器参数")
@@ -406,12 +412,22 @@ with tab2:
         water_flows = []
         water_temps = []
         for i in range(zones):
-            water_flows.append(
-                st.number_input(f"分区{i+1}冷却水量(L/min)", key=f"flow_{i}")
-            )
-            water_temps.append(
-                st.number_input(f"分区{i+1}冷却水温度(℃)", key=f"temp_{i}")
-            )
+            col1, col2 = st.columns(2)
+            with col1:
+                water_flows.append(
+                    st.number_input(
+                        f"分区{i+1}冷却水量(L/min)",
+                        key=f"flow_{i}",
+                        value=30.0,
+                        step=5.0,
+                    )
+                )
+            with col2:
+                water_temps.append(
+                    st.number_input(
+                        f"分区{i+1}冷却水温度(℃)", key=f"temp_{i}", value=10.0, step=2.0
+                    )
+                )
 
     with tab2_col3:
         st.subheader("参数显示")
@@ -426,23 +442,59 @@ with tab2:
                     "钢液高度",
                 ],
                 "值": [
-                    f"{casting_speed} m/min",
+                    casting_speed,
                     heat_flux_factor,
-                    f"{width} mm",
-                    f"{thickness} mm",
-                    f"{steel_height} mm",
+                    width,
+                    thickness,
+                    steel_height,
+                ],
+                "单位": [
+                    "m/min",
+                    "-",
+                    "mm",
+                    "mm",
+                    "mm",
                 ],
             }
         )
         st.table(mold_params)
 
         st.subheader("二冷区结构")
-        fig = px.bar(
-            x=range(1, zones + 1),
-            y=water_flows,
-            labels={"x": "分区编号", "y": "冷却水量(L/min)"},
-            title="二冷区冷却水量分布",
+        fig = go.Figure()
+
+        # 添加水量柱状图
+        fig.add_trace(
+            go.Bar(
+                x=list(range(1, zones + 1)),
+                y=water_flows,
+                name="冷却水量",
+                marker_color="blue",
+            )
         )
+
+        # 添加温度折线图(使用次y轴)
+        fig.add_trace(
+            go.Scatter(
+                x=list(range(1, zones + 1)),
+                y=water_temps,
+                name="冷却水温",
+                line=dict(color="red"),
+                yaxis="y2",
+            )
+        )
+
+        # 更新布局
+        fig.update_layout(
+            title="二冷区冷却参数分布",
+            xaxis_title="分区编号",
+            yaxis_title="冷却水量(L/min)",
+            yaxis=dict(showgrid=False),
+            yaxis2=dict(
+                title="冷却水温(℃)", overlaying="y", side="right", showgrid=False
+            ),
+            legend=dict(x=0.05, y=0.05, bgcolor="rgba(255,255,255,0.5)"),
+        )
+
         st.plotly_chart(fig, use_container_width=True)
 
 with tab3:
