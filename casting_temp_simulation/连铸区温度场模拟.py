@@ -498,46 +498,137 @@ with tab2:
         st.plotly_chart(fig, use_container_width=True)
 
 with tab3:
-    tab3_col1, tab3_col2 = st.columns([0.15, 0.85], border=True)
+    tab3_col1, tab3_col2 = st.columns([0.3, 0.7], border=True)
 
     with tab3_col1:
         st.subheader("计算设置")
-        space_step = st.number_input("空间步长(mm)", value=5.0)
-        time_step = st.number_input("时间步长(s)", value=0.1)
+        space_step = st.number_input("空间步长(mm)", value=5.0, min_value=0.1, step=0.1)
+        time_step = st.number_input("时间步长(s)", value=0.1, min_value=0.01, step=0.01)
+        total_time = st.number_input(
+            "总计算时间(s)", value=10.0, min_value=0.1, step=0.1
+        )
+
+        # 材料参数
+        st.subheader("材料参数")
+        conductivity = st.number_input("导热系数(W/m·K)", value=30.0)
+        density = st.number_input("密度(kg/m³)", value=7800.0)
+        specific_heat = st.number_input("比热容(J/kg·K)", value=500.0)
+
+        # 边界条件
+        st.subheader("边界条件")
+        heat_flux = st.number_input("热流密度(W/m²)", value=100000.0)
 
         if st.button("初始化计算"):
             st.session_state.initialized = True
-            st.success("计算已初始化")
 
-        if st.button("开始计算"):
-            if "initialized" in st.session_state:
-                st.session_state.calculated = True
-                st.success("计算完成")
-            else:
-                st.warning("请先初始化计算")
+            # 初始化温度场 (165x165mm 1/4模型)
+            nx = int(82.5 / space_step) + 1  # 165/2=82.5mm
+            ny = int(82.5 / space_step) + 1
+            st.session_state.T = np.ones((ny, nx)) * 1550  # 初始温度1550℃
+            st.session_state.H = st.session_state.T * density * specific_heat  # 焓
+
+            st.success(f"初始化完成，网格尺寸: {nx}x{ny}")
 
     with tab3_col2:
         st.subheader("计算结果")
 
-        if "calculated" in st.session_state:
-            st.success("温度场计算结果")
+        if "initialized" in st.session_state:
+            if st.button("开始计算"):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
 
-            # 模拟温度场数据
-            x = np.linspace(0, 200, 50)
-            y = np.linspace(0, 800, 50)
-            X, Y = np.meshgrid(x, y)
-            Z = np.sin(X / 10) * np.cos(Y / 10) * 100 + 1000
+                # 计算参数
+                dx = space_step / 1000  # 转为米
+                dt = time_step
+                alpha = conductivity / (density * specific_heat)
 
-            fig = go.Figure(
-                data=go.Contour(
-                    z=Z, x=x, y=y, colorscale="Hot", colorbar=dict(title="温度(℃)")
+                T = st.session_state.T.copy()
+                H = st.session_state.H.copy()
+
+                # 时间步进
+                steps = int(total_time / time_step)
+                for step in range(steps):
+                    new_H = H.copy()
+
+                    # 内部节点
+                    for i in range(1, ny - 1):
+                        for j in range(1, nx - 1):
+                            new_H[i, j] = H[i, j] + alpha * dt * (
+                                (T[i + 1, j] - 2 * T[i, j] + T[i - 1, j]) / (dx**2)
+                                + (T[i, j + 1] - 2 * T[i, j] + T[i, j - 1]) / (dx**2)
+                            )
+
+                    # 边界条件处理
+                    # 左边界 (x=0, 绝热)
+                    i = 0
+                    for j in range(1, nx - 1):
+                        new_H[i, j] = H[i, j] + alpha * dt * (
+                            (T[i + 1, j] - T[i, j]) / (dx**2)
+                            + (T[i, j + 1] - 2 * T[i, j] + T[i, j - 1]) / (dx**2)
+                        )
+
+                    # 下边界 (y=0, 绝热)
+                    j = 0
+                    for i in range(1, ny - 1):
+                        new_H[i, j] = H[i, j] + alpha * dt * (
+                            (T[i + 1, j] - 2 * T[i, j] + T[i - 1, j]) / (dx**2)
+                            + (T[i, j + 1] - T[i, j]) / (dx**2)
+                        )
+
+                    # 右边界 (x=82.5mm, 对流)
+                    i = ny - 1
+                    for j in range(1, nx - 1):
+                        new_H[i, j] = (
+                            H[i, j]
+                            - 2 * heat_flux * dt / (density * dx)
+                            + alpha
+                            * dt
+                            * ((T[i, j + 1] - 2 * T[i, j] + T[i, j - 1]) / (dx**2))
+                        )
+
+                    # 上边界 (y=82.5mm, 对流)
+                    j = nx - 1
+                    for i in range(1, ny - 1):
+                        new_H[i, j] = (
+                            H[i, j]
+                            - 2 * heat_flux * dt / (density * dx)
+                            + alpha
+                            * dt
+                            * ((T[i + 1, j] - 2 * T[i, j] + T[i - 1, j]) / (dx**2))
+                        )
+
+                    # 角点 (x=82.5mm,y=82.5mm)
+                    i = ny - 1
+                    j = nx - 1
+                    new_H[i, j] = H[i, j] - 4 * heat_flux * dt / (density * dx)
+
+                    # 更新温度场
+                    H = new_H
+                    T = H / (density * specific_heat)
+
+                    # 更新进度
+                    progress = (step + 1) / steps
+                    progress_bar.progress(progress)
+                    status_text.text(f"计算进度: {step+1}/{steps} 步")
+
+                st.session_state.T = T
+                st.session_state.calculated = True
+                st.success("计算完成")
+
+            if "calculated" in st.session_state:
+                # 可视化结果
+                fig = go.Figure(
+                    data=go.Contour(
+                        z=st.session_state.T,
+                        colorscale="Hot",
+                        colorbar=dict(title="温度(℃)"),
+                    )
                 )
-            )
-            fig.update_layout(
-                title="连铸坯温度场分布",
-                xaxis_title="宽度方向(mm)",
-                yaxis_title="高度方向(mm)",
-            )
-            st.plotly_chart(fig, use_container_width=True)
+                fig.update_layout(
+                    title="连铸坯1/4截面温度场分布",
+                    xaxis_title="宽度方向(mm)",
+                    yaxis_title="厚度方向(mm)",
+                )
+                st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("请先完成计算")
+            st.info("请先初始化计算参数")
