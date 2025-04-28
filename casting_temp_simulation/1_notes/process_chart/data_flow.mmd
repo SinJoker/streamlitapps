@@ -4,9 +4,11 @@ config:
       theme: redux
 ---
 flowchart-elk TD
+
         %% 主逻辑模块
         input e1@==>calculate e2@==>output
         calculate_section  --> |分段计算模块|calculate_boundary
+
         %% 分段计算模块数据导入
         input_process_pulling_speed &  input_mold_height & input_second_cooling_length & input_air_cooling_length -.->|分段计算模块|calculate_section
         calculate_property & calculate_boundary -.->|核心计算模块|calculate_core
@@ -17,7 +19,7 @@ flowchart-elk TD
         %% 边界条件计算模块数据导入
         input_process_er_k_a & input_process_er_k_b-.->|边界条件计算模块|calculate_boundary_mold_heat_flow
         input_process_water_colling_equation & input_process_mold_temperature & input_process_water_temperature & input_process_er_k_le-.->|边界条件计算模块|calculate_boundary_pressure
-        input_process_air_k_le & input_process_air_k_le & input_process_air_temperature -.->|边界条件计算模块|calculate_boundary_air_heat_flow
+        input_process_emissivity & input_process_air_k_le & input_process_air_k_le & input_process_air_temperature -.->|边界条件计算模块|calculate_boundary_air_heat_flow
 
         %% 位置调整
         calculate_property ~~~ calculate_boundary ~~~ calculate_section
@@ -65,9 +67,12 @@ flowchart-elk TD
                 input_process_water_colling_equation(二冷区冷却公式选择)
                 %% 成分计算公式选择
                 input_process_composition_equation(成分计算公式选择)
+                %% 发射率
+                input_process_emissivity(发射率)
             end
-
         end
+
+
         subgraph calculate[数据计算]
         direction LR
             calculate_property ~~~ calculate_section ~~~ calculate_boundary ~~~calculate_core
@@ -106,6 +111,8 @@ flowchart-elk TD
                 calculate_air_cooling_section_time_range(空冷区时间范围)
             end
         end
+
+
         subgraph output[数据输出]
             %% 绘图模块
             subgraph plot[绘图]

@@ -211,34 +211,18 @@ q_right = 0.0  # 右侧热流密度 [W/m²] (第二类边界)
 dt = 0.02  # 时间步长 [s] (需满足稳定性条件)
 total_time = 5 * 60  # 总模拟时间 [s]
 tol = 1e-6  # 稳态检测容差
+# 从JSON文件加载边界条件配置
+import json
 
-# 边界条件时间分段设置
-boundary_time_segments = [
-    {
-        "start": 0,
-        "end": 60,
-        "type": "third_kind",
-    },  # 0-60s使用第三类边界
-    {
-        "start": 60,
-        "end": 120,
-        "type": "second_kind",
-        "q_top": -50000,
-        "q_right": -50000,
-    },  # 60-120s使用第二类边界
-    {
-        "start": 120,
-        "end": 180,
-        "type": "second_kind",
-        "q_top": -30000,
-        "q_right": -30000,
-    },  # 60-120s使用第二类边界
-    {
-        "start": 180,
-        "end": total_time,
-        "type": "third_kind",
-    },  # 120s后恢复第三类边界
-]
+try:
+    with open("boundary_config.json", "r", encoding="utf-8") as f:
+        boundary_config = json.load(f)
+    boundary_time_segments = boundary_config["segments"]
+    total_time = boundary_config["total_time"]
+except FileNotFoundError:
+    raise FileNotFoundError(
+        "未找到boundary_config.json配置文件，" "请先运行boundary_config.py生成配置文件"
+    )
 
 
 # ====================== 参数说明 ======================

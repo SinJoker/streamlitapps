@@ -8,6 +8,7 @@ class HeatTransferCalculator:
         """初始化换热系数计算器"""
         pass
 
+    # 结晶器区热流边界条件
     def mold_heat_flux(self, t):
         """计算结晶器热流密度
         参数:
@@ -37,6 +38,7 @@ class HeatTransferCalculator:
         )
         return K1 * 2 * (v_g**0.56) * np.exp(-1.5 * Z) * 1e6
 
+    # 二冷区对流换热边界条件
     def secondary_cooling_h(self, V, T_s, T_w, method="Mitsutsuka"):
         """计算二冷区换热系数
         参数:
@@ -190,6 +192,22 @@ class HeatTransferCalculator:
             raise ValueError(f"未知的计算方法: {method}")
 
         return max(h, 0)  # 确保非负
+
+    def air_cooling_heat_flux(self, T_s, T_a, emissivity=0.8):
+        """计算空冷区热流密度
+
+        参数:
+            T_s (float): 表面温度(℃)
+            T_a (float): 环境温度(℃)
+            emissivity (float, optional): 发射率，默认为0.8
+
+        返回:
+            float: 热流密度(kW/m²)，当表面温度<=环境温度时返回0
+        """
+        if T_s <= T_a:
+            return 0
+        q = 5.67e-8 * emissivity * ((T_s + 273) ** 4 - (T_a + 273) ** 4) / 1000
+        return max(q, 0)
 
     def plot_heat_transfer(self):
         """绘制换热系数随水量密度变化的曲线"""
