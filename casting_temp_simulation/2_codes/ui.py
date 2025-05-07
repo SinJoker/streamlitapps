@@ -381,7 +381,54 @@ with tab1:
                 row=1,
                 col=2,
             )
+            # Plotly 支持的常见 colorscale 包括:
 
+            # 连续色标:
+            # Viridis (默认)
+            # Plasma
+            # Inferno
+            # Magma
+            # Cividis
+            # Hot
+            # Jet
+            # Greys
+            # YlGnBu
+            # Greens
+            # YlOrRd
+            # Bluered
+            # RdBu
+            # Picnic
+            # Rainbow
+            # Portland
+            # Electric
+            # Blackbody
+            # Earth
+            # Thermal
+            # 离散色标:
+            # Blues
+            # Reds
+            # Greens
+            # Purples
+            # Oranges
+            # BuPu
+            # PuBu
+            # PuRd
+            # RdPu
+            # BuGn
+            # GnBu
+            # PuBuGn
+            # YlGn
+            # YlOrBr
+            # 特殊色标:
+            # Turbo (类似 Jet 但更均匀)
+            # HSV (色相-饱和度-明度)
+            # Plotly3 (Plotly 默认色标)
+            # 在温度场模拟中，常用的 colorscale 包括:
+
+            # Hot/Thermal - 适合温度可视化
+            # Viridis/Plasma - 科学可视化标准
+            # Jet - 传统温度图
+            # RdBu - 红蓝对比适合温差显示
             # 3D图视角和主题设置
             scene_settings = {
                 "default": {
@@ -402,7 +449,7 @@ with tab1:
                 "warm": {
                     "camera": dict(eye=dict(x=-0.9, y=0.9, z=0.6)),
                     "bgcolor": "white",
-                    "colorscale": "RdBu",
+                    "colorscale": "Plasma",
                 },
             }
 
