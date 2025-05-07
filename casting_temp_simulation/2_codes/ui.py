@@ -1,12 +1,6 @@
 # 必须在最前面调用set_page_config
-import time
 import streamlit as st
-
-st.set_page_config(layout="wide")
-
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import json
 import os
 from thermal_properties import (
@@ -14,6 +8,18 @@ from thermal_properties import (
     calculate_liquidus_temp,
     calculate_solidus_temp,
 )
+from prop_vs_temp import (
+    cp_cal,
+    lamda_cal,
+    rho_cal,
+)
+
+# 绘制物性参数图表(使用plotly)
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+st.set_page_config(layout="wide")
 
 # """设置连铸区温度场模拟的UI界面"""
 st.title("连铸区温度场模拟计算")
@@ -213,7 +219,6 @@ with tab1:
         solid_formula = st.selectbox("固相线的计算公式", solidus_formulas)
 
     with col2:
-        st.header("钢物性参数清单")
 
         if (
             tab1_col2.button("保存并更新成分", use_container_width=True)
@@ -248,10 +253,7 @@ with tab1:
             with open("results/const_results.json", "w", encoding="utf-8") as f:
                 json.dump(const_results, f, ensure_ascii=False, indent=4)
 
-            st.subheader("计算结果")
-            st.write("### 物性参数")
-            st.json(const_results)
-
+            # 显示温度结果
             st.write("### 温度计算结果")
             cols = st.columns(2)
             with cols[0]:
@@ -259,6 +261,176 @@ with tab1:
             with cols[1]:
                 st.metric("固相线温度", f"{const_results['solid_temp']:.2f} °C")
 
+            # 显示物性参数表格
+            st.write("### 物性参数")
+            const_props = const_results["const_properties"]
+            # 参数名称翻译和后缀解释
+            param_trans = {
+                "lamda": "导热系数",
+                "c": "比热容",
+                "rho": "密度",
+                "l_f": "潜热",
+            }
+            phase_trans = {"_s": "(固相)", "_m": "(两相)", "_l": "(液相)"}
+
+            # 根据参数名称自动分配单位和中文名称
+            unit_map = {
+                "lamda": "W/(m·K)",
+                "c": "J/(kg·K)",
+                "rho": "kg/m³",
+                "l_f": "kJ/kg",
+            }
+
+            # 创建带单位的表格
+            prop_data = []
+            for name, value in const_props.items():
+                # 获取基础参数名和单位
+                base_name = next((k for k in param_trans if name.startswith(k)), "")
+                unit = unit_map.get(base_name, "")
+
+                # 构建中文参数名
+                chinese_name = param_trans.get(base_name, name)
+                for suffix, phase in phase_trans.items():
+                    if name.endswith(suffix):
+                        chinese_name += phase
+                        break
+
+                prop_data.append(
+                    {"参数名称": chinese_name, "参数值": value, "单位": unit}
+                )
+
+            prop_df = pd.DataFrame(prop_data)
+            st.dataframe(prop_df, hide_index=True, use_container_width=True)
+
+            # 获取物性参数
+            props = const_results["const_properties"]
+            Tl = const_results["liquid_temp"]
+            Ts = const_results["solid_temp"]
+            Tc = Tl + 100  # 假设临界温度比液相线高100℃
+
+            # 创建温度范围(1600~1000℃)
+            temps = np.linspace(1600, 1300, 50)
+            # 创建距离范围(0-4m)
+            positions = np.linspace(0, 4, 50)
+
+            # 计算比热容和密度
+            cps = [cp_cal(T, Ts, Tl, props) for T in temps]
+            rhos = [rho_cal(T, Ts, Tl, props) for T in temps]
+
+            # 计算导热系数(3D)
+            T_grid, P_grid = np.meshgrid(temps, positions)
+            lamdas = np.array(
+                [[lamda_cal(T, p, Ts, Tl, Tc, props) for T in temps] for p in positions]
+            )
+
+            # 创建2x2网格布局
+            fig = make_subplots(
+                rows=2,
+                cols=2,
+                specs=[
+                    [{"type": "xy"}, {"type": "surface", "rowspan": 2}],
+                    [{"type": "xy"}, None],
+                ],
+                subplot_titles=(
+                    "密度随温度变化",
+                    "导热系数随温度和距离变化",
+                    "比热容随温度变化",
+                ),
+                vertical_spacing=0.1,
+                horizontal_spacing=0.05,
+            )
+
+            # 左上: 密度图
+            fig.add_trace(
+                go.Scatter(
+                    x=temps, y=rhos, name="密度 (kg/m³)", line=dict(color="blue")
+                ),
+                row=1,
+                col=1,
+            )
+            fig.update_xaxes(title_text="温度 (℃)", row=1, col=1, range=[1600, 1300])
+            fig.update_yaxes(title_text="密度 (kg/m³)", row=1, col=1)
+
+            # 左下: 比热容图
+            fig.add_trace(
+                go.Scatter(
+                    x=temps, y=cps, name="比热容 (J/kg·K)", line=dict(color="red")
+                ),
+                row=2,
+                col=1,
+            )
+            fig.update_xaxes(title_text="温度 (℃)", row=2, col=1, range=[1600, 1300])
+            fig.update_yaxes(title_text="比热容 (J/kg·K)", row=2, col=1)
+
+            # 右边: 导热系数3D图 (跨两行)
+            fig.add_trace(
+                go.Surface(
+                    x=T_grid,
+                    y=P_grid,
+                    z=lamdas,
+                    name="导热系数",
+                    colorscale="Viridis",
+                    showscale=False,
+                    contours_z=dict(
+                        show=True,
+                        usecolormap=True,
+                        highlightcolor="limegreen",
+                        project_z=True,
+                    ),
+                ),
+                row=1,
+                col=2,
+            )
+
+            # 3D图视角和主题设置
+            scene_settings = {
+                "default": {
+                    "camera": dict(eye=dict(x=-0.9, y=0.9, z=0.6)),  # 顺时针旋转90度
+                    "bgcolor": "white",
+                    "colorscale": "Viridis",
+                },
+                "dark": {
+                    "camera": dict(eye=dict(x=-0.9, y=0.9, z=0.6)),
+                    "bgcolor": "rgb(20,20,20)",
+                    "colorscale": "Plasma",
+                },
+                "blue": {
+                    "camera": dict(eye=dict(x=-0.9, y=0.9, z=0.6)),
+                    "bgcolor": "rgb(240,248,255)",
+                    "colorscale": "Blues",
+                },
+                "warm": {
+                    "camera": dict(eye=dict(x=-0.9, y=0.9, z=0.6)),
+                    "bgcolor": "white",
+                    "colorscale": "RdBu",
+                },
+            }
+
+            # 默认使用第一种主题
+            selected_theme = "warm"
+            fig.update_scenes(
+                xaxis_title="温度 (℃)",
+                yaxis_title="与弯月面距离 (m)",
+                zaxis_title="导热系数 (W/m·K)",
+                camera=scene_settings[selected_theme]["camera"],
+                bgcolor=scene_settings[selected_theme]["bgcolor"],
+                row=1,
+                col=2,
+            )
+
+            # 更新曲面颜色主题
+            fig.data[2].colorscale = scene_settings[selected_theme].get(
+                "colorscale", "Viridis"
+            )
+
+            # 调整整体布局
+            fig.update_layout(
+                # height=800,
+                showlegend=False,
+                margin=dict(l=50, r=50, b=50, t=50),
+            )
+
+            col2.plotly_chart(fig, use_container_width=True)
 
 # # 工艺及设备参数 (tab2)
 # with tab2:
